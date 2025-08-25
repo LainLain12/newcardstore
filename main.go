@@ -50,8 +50,8 @@ func main() {
 	http.HandleFunc("/daily/", dailyFolderHandler)
 	http.HandleFunc("/view", imageViewHandler)
 
-	log.Println("Server running on http://localhost:8080")
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	log.Println("Server running on http://localhost:1250")
+	log.Fatal(http.ListenAndServe(":1250", nil))
 }
 
 func loadTemplates() {
