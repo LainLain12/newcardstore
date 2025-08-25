@@ -1,0 +1,153 @@
+{{define "index.gohtml"}}
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>{{.SiteName}}</title>
+<link href="https://cdn.jsdelivr.net/npm/@material-tailwind/html@latest/styles/material-tailwind.css" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com?plugins=forms,typography,aspect-ratio"></script>
+<script>tailwind.config = { darkMode: 'class' };</script>
+<style>
+  :root { --appbar-bg: rgba(13,65,61,1); }
+  body { font-family: 'Inter', system-ui, sans-serif; }
+  .image-grid { display: grid; grid-template-columns: repeat(auto-fill,minmax(180px,1fr)); gap:1rem; }
+  .fade-in { animation: fade .5s ease-in; }
+  .appbar { background: var(--appbar-bg); color:#fff; }
+  .appbar a, .appbar button { color:#fff; }
+  .appbar a:hover, .appbar button:hover { color:#e2f7f4; }
+  .tab-link { color:#cfe9e6; border-color:transparent; }
+  .tab-link-active { color:#ffffff; border-color:#ffffff; }
+  @keyframes fade { from {opacity:0; transform: translateY(4px);} to {opacity:1; transform: translateY(0);} }
+</style>
+</head>
+<body class="h-full bg-gray-50 text-gray-900">
+  <header class="sticky top-0 z-30 appbar shadow">
+    <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+  <h1 class="text-2xl font-semibold tracking-tight">{{.SiteName}}</h1>
+      <div class="flex items-center gap-2">
+        <button id="toggleTheme" class="p-2 rounded-full hover:bg-gray-200" title="Toggle Theme">🌓</button>
+      </div>
+    </div>
+    <nav class="max-w-7xl mx-auto px-4">
+      <div class="flex space-x-6">
+        <a href="/?tab=daily" class="py-3 border-b-2 {{if eq .ActiveTab "daily"}}tab-link-active font-medium{{else}}tab-link hover:text-white hover:border-white{{end}}">Daily</a>
+        <a href="/?tab=weekly" class="py-3 border-b-2 {{if eq .ActiveTab "weekly"}}tab-link-active font-medium{{else}}tab-link hover:text-white hover:border-white{{end}}">Weekly</a>
+      </div>
+    </nav>
+  </header>
+  <main class="max-w-7xl mx-auto px-4 py-6 space-y-10">
+    {{if eq .ActiveTab "daily"}}
+      <section class="space-y-6 fade-in">
+        <h2 class="text-xl font-semibold">Daily Folders</h2>
+        <div class="flex flex-wrap gap-3">
+          {{range .DailyFolders}}
+            <button data-folder="{{.Name}}" class="folder-chip px-4 py-2 rounded-full text-sm font-medium border {{if eq $.ActiveDailyFolder .Name}}bg-indigo-600 text-white border-indigo-600 shadow{{else}}bg-white text-gray-700 hover:border-indigo-300 hover:text-indigo-700{{end}}">{{.Name}}</button>
+          {{else}}
+            <p class="text-gray-500">No daily folders yet.</p>
+          {{end}}
+        </div>
+      </section>
+      <section id="dailyFolderView" class="fade-in">
+        <div class="flex items-center justify-between mb-4">
+          <h2 id="dailyFolderTitle" class="text-xl font-semibold">{{.ActiveDailyFolder}}</h2>
+          <div class="flex items-center gap-2 text-sm">
+            <span id="dailyCount" class="text-gray-500"></span>
+            <button id="refreshFolder" class="text-indigo-600 hover:underline" title="Refresh">Refresh</button>
+          </div>
+        </div>
+  <div id="dailyImages" class="image-grid"></div>
+      </section>
+    {{else if eq .ActiveTab "weekly"}}
+      <section class="fade-in">
+        <h2 class="text-xl font-semibold mb-4">Weekly Images</h2>
+        {{if .WeeklyImages}}
+        <div class="image-grid">
+          {{range .WeeklyImages}}
+            <figure class="group relative overflow-hidden rounded-lg border bg-white shadow hover:shadow-md transition">
+              <a href="/view?src={{.}}" class="block focus:outline-none">
+                <img src="/{{.}}" class="w-full h-40 object-cover group-hover:scale-105 transition" loading="lazy" />
+              </a>
+              <div class="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition">
+                <button data-dl="/{{.}}" class="dl-btn p-1.5 rounded-md bg-white/90 hover:bg-white shadow text-gray-700 text-xs font-medium">Save</button>
+                <button data-copy="/{{.}}" class="copy-btn p-1.5 rounded-md bg-white/90 hover:bg-white shadow text-gray-700 text-xs font-medium">Copy</button>
+              </div>
+            </figure>
+          {{end}}
+        </div>
+        {{else}}
+          <p class="text-gray-500">No weekly images yet.</p>
+        {{end}}
+      </section>
+    {{end}}
+  </main>
+
+<script>
+// Simple client-side folder viewer (uses already embedded data via dataset)
+function $(q){return document.querySelector(q);} 
+const imagesWrap = document.getElementById('dailyImages');
+const titleEl = document.getElementById('dailyFolderTitle');
+const countEl = document.getElementById('dailyCount');
+
+async function loadFolder(name){
+  if(!name){imagesWrap.innerHTML='';return}
+  titleEl.textContent = name;
+  imagesWrap.innerHTML = `<div class='col-span-full flex items-center gap-2 text-gray-500'><svg class='animate-spin h-5 w-5 text-indigo-500' viewBox='0 0 24 24'><circle class='opacity-25' cx='12' cy='12' r='10' stroke='currentColor' stroke-width='4'></circle><path class='opacity-75' fill='currentColor' d='M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z'></path></svg> Loading...</div>`;
+  try {
+    const res = await fetch(`/daily/${encodeURIComponent(name)}`);
+    const html = await res.text();
+    imagesWrap.innerHTML = html;
+    const imgs = imagesWrap.querySelectorAll('img');
+    countEl.textContent = imgs.length + ' images';
+  } catch(e){
+    imagesWrap.innerHTML = `<p class='text-red-600'>Failed to load folder.</p>`;
+  }
+}
+
+document.querySelectorAll('.folder-chip').forEach(btn => {
+  btn.addEventListener('click', (e)=>{
+    const name = btn.dataset.folder;
+    history.replaceState(null,'',`?tab=daily&folder=${encodeURIComponent(name)}`);
+    document.querySelectorAll('.folder-chip').forEach(b=>b.classList.remove('bg-indigo-600','text-white','border-indigo-600','shadow'));
+    btn.classList.add('bg-indigo-600','text-white','border-indigo-600','shadow');
+    loadFolder(name);
+  });
+});
+
+document.getElementById('refreshFolder')?.addEventListener('click',()=>{
+  loadFolder(titleEl.textContent.trim());
+});
+
+// Initial load
+if(titleEl && titleEl.textContent.trim()!==''){
+  loadFolder(titleEl.textContent.trim());
+}
+
+// Delegated buttons (download & copy) for dynamically loaded images
+document.addEventListener('click', e=>{
+  const dl = e.target.closest('.dl-btn');
+  if(dl){
+    const url = dl.getAttribute('data-dl');
+    const a = document.createElement('a'); a.href=url; a.download = url.split('/').pop(); document.body.appendChild(a); a.click(); a.remove();
+  }
+  const cp = e.target.closest('.copy-btn');
+  if(cp){
+    const url = window.location.origin + cp.getAttribute('data-copy');
+    navigator.clipboard.writeText(url).then(()=>{cp.textContent='Copied'; setTimeout(()=>cp.textContent='Copy',1500);});
+  }
+});
+
+// Theme toggle
+const themeBtn = document.getElementById('toggleTheme');
+const root = document.documentElement;
+if(localStorage.theme==='dark'){root.classList.add('dark');document.body.classList.add('bg-gray-900','text-gray-100');}
+
+themeBtn.addEventListener('click',()=>{
+  const dark = root.classList.toggle('dark');
+  if(dark){localStorage.theme='dark';document.body.classList.add('bg-gray-900','text-gray-100');}
+  else {localStorage.theme='light';document.body.classList.remove('bg-gray-900','text-gray-100');}
+});
+</script>
+</body>
+</html>
+{{end}}

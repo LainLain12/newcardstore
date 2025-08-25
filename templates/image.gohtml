@@ -1,0 +1,131 @@
+{{define "image.gohtml"}}
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
+<title>{{.Title}}</title>
+<meta name="description" content="{{.Description}}" />
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="{{.SiteName}}" />
+<meta property="og:title" content="{{.Title}}" />
+<meta property="og:description" content="{{.Description}}" />
+<meta property="og:url" content="{{.PageURL}}" />
+<meta property="og:image" content="{{.OGImage}}" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="{{.Title}}" />
+<meta name="twitter:description" content="{{.Description}}" />
+<meta name="twitter:image" content="{{.OGImage}}" />
+<link rel="preload" as="image" href="{{.Src}}" />
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  :root { --appbar-bg: rgba(13,65,61,1); }
+  body { font-family: 'Inter', system-ui, sans-serif; }
+  .thumbs { display:flex; gap:.75rem; overflow-x:auto; padding:.5rem .25rem 1rem; -webkit-overflow-scrolling:touch; }
+  .thumbs::-webkit-scrollbar { display:none; }
+  .thumbs img { box-shadow:0 1px 2px rgba(0,0,0,.15); }
+  .glass { background: var(--appbar-bg); color:#fff; }
+  .glass button, .glass a, .glass h1 { color:#fff; }
+  .glass button:hover, .glass a:hover { background:rgba(255,255,255,.08); }
+  @media (prefers-color-scheme: dark){ body{background:#0f1115; color:#f4f6f9;} }
+</style>
+</head>
+<body class="min-h-screen bg-gray-50 text-gray-900 flex flex-col">
+  <header class="fixed top-0 inset-x-0 z-40 glass shadow">
+    <div class="max-w-7xl mx-auto px-3 sm:px-4 py-2 flex items-center gap-2">
+      <a href="javascript:history.back()" aria-label="Back" class="p-2 rounded-full hover:bg-black/5 dark:hover:bg-white/10">
+        <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
+      </a>
+      <h1 class="text-sm sm:text-base font-semibold truncate flex-1">{{.FileName}}</h1>
+      <button id="downloadBtn" aria-label="Download" class="p-2 rounded-full hover:bg-black/5 dark:hover:bg-white/10">
+        <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3"/></svg>
+      </button>
+      <button id="copyBtn" aria-label="Copy link" class="p-2 rounded-full hover:bg-black/5 dark:hover:bg-white/10">
+        <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 17l4 4 4-4m-4-5v9"/><path stroke-linecap="round" stroke-linejoin="round" d="M20 12v6a2 2 0 01-2 2H6a2 2 0 01-2-2v-6"/></svg>
+      </button>
+      <a href="/" aria-label="Close" class="p-2 rounded-full hover:bg-black/5 dark:hover:bg-white/10">
+        <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+      </a>
+    </div>
+  </header>
+  <main class="flex-1 max-w-7xl mx-auto w-full px-2 sm:px-4 pt-20 pb-24 sm:pb-16">
+    <div class="relative bg-white dark:bg-gray-900/60 border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm overflow-hidden flex items-center justify-center p-2 sm:p-4 min-h-[50vh]">
+      <img id="mainImage" src="{{.Src}}" alt="{{.FileName}}" class="max-h-[75vh] object-contain w-auto select-none" loading="eager" />
+    </div>
+  </main>
+  {{if .RelatedImages}}
+  <nav class="fixed bottom-0 inset-x-0 z-40 glass shadow-inner">
+    <div class="max-w-7xl mx-auto px-2 sm:px-4 py-2">
+      <div id="relatedRow" class="thumbs">
+        {{range .RelatedImages}}
+          <button data-src="{{.}}" class="group relative flex-shrink-0 focus:outline-none focus:ring-2 focus:ring-indigo-500 rounded-lg overflow-hidden">
+            <img src="{{.}}" class="h-20 w-20 object-cover rounded-lg border border-gray-200 dark:border-gray-700 group-hover:opacity-80 transition" loading="lazy" />
+          </button>
+        {{end}}
+      </div>
+    </div>
+  </nav>
+  {{end}}
+<script>
+const mainImg = document.getElementById('mainImage');
+const downloadBtn = document.getElementById('downloadBtn');
+const copyBtn = document.getElementById('copyBtn');
+const related = document.getElementById('relatedRow');
+
+function downloadCurrent(){
+  const a = document.createElement('a');
+  a.href = mainImg.src; a.download = mainImg.src.split('/').pop();
+  document.body.appendChild(a); a.click(); a.remove();
+}
+if(downloadBtn){ downloadBtn.addEventListener('click', downloadCurrent); }
+
+if(copyBtn){
+  copyBtn.addEventListener('click', async ()=>{
+    try { await navigator.clipboard.writeText(window.location.href); copyBtn.classList.add('text-green-600'); copyBtn.title='Copied'; }
+    catch(e){ copyBtn.classList.add('text-red-600'); }
+    setTimeout(()=>{copyBtn.classList.remove('text-green-600','text-red-600');},1500);
+  });
+}
+
+function swapImage(src){
+  if(!src) return;
+  mainImg.src = src;
+  history.replaceState(null,'', '/view?src=' + encodeURIComponent(src.substring(1)));
+}
+if(related){
+  related.querySelectorAll('button[data-src]').forEach(btn=>{
+    btn.addEventListener('click', ()=> swapImage(btn.dataset.src));
+  });
+}
+
+// Swipe left/right (touch) to move among related images
+let touchStartX = 0;
+mainImg.addEventListener('touchstart', e=>{touchStartX = e.touches[0].clientX;});
+mainImg.addEventListener('touchend', e=>{
+  if(!related) return;
+  const dx = e.changedTouches[0].clientX - touchStartX;
+  if(Math.abs(dx) < 40) return;
+  const items = Array.from(related.querySelectorAll('button[data-src]'));
+  const current = mainImg.src.replace(window.location.origin, '');
+  const idx = items.findIndex(b=> b.dataset.src === current);
+  let nextIdx = idx;
+  if(dx < 0) nextIdx = Math.min(items.length-1, idx+1); else nextIdx = Math.max(0, idx-1);
+  if(nextIdx !== idx && items[nextIdx]) swapImage(items[nextIdx].dataset.src);
+});
+
+// Keyboard navigation
+document.addEventListener('keydown', e=>{
+  if(!related) return;
+  if(['ArrowRight','ArrowLeft'].includes(e.key)){
+    const items = Array.from(related.querySelectorAll('button[data-src]'));
+    const current = mainImg.src.replace(window.location.origin, '');
+    const idx = items.findIndex(b=> b.dataset.src === current);
+    let nextIdx = idx;
+    if(e.key === 'ArrowRight') nextIdx = Math.min(items.length-1, idx+1); else nextIdx = Math.max(0, idx-1);
+    if(nextIdx !== idx && items[nextIdx]) swapImage(items[nextIdx].dataset.src);
+  } else if(e.key === 's'){ downloadCurrent(); }
+});
+</script>
+</body>
+</html>
+{{end}}
