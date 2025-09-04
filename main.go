@@ -25,16 +25,18 @@ type PageData struct {
 }
 
 type ImagePageData struct {
-	Src           string
-	FileName      string
-	Folder        string
-	Kind          string // daily or weekly
-	RelatedImages []string
-	SiteName      string
-	OGImage       string
-	PageURL       string
 	Title         string
 	Description   string
+	SiteName      string
+	PageURL       string
+	OGImage       string
+	Src           string
+	FileName      string
+	RelatedImages []string
+	CurrentIndex  int
+	TotalImages   int
+	Kind          string
+	Folder        string
 }
 
 const siteName = "Thai Card Store"
@@ -46,6 +48,12 @@ func main() {
 
 	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
 	http.Handle("/images/", http.StripPrefix("/images/", http.FileServer(http.Dir("images"))))
+	http.HandleFunc("/appicon.png", func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFile(w, r, "appicon.png")
+	})
+	http.HandleFunc("/preview.png", func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFile(w, r, "preview.png")
+	})
 	http.HandleFunc("/", galleryHandler)
 	http.HandleFunc("/daily/", dailyFolderHandler)
 	http.HandleFunc("/view", imageViewHandler)
@@ -190,7 +198,16 @@ func imageViewHandler(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	data := ImagePageData{Src: "/" + filepath.ToSlash(fullPath), FileName: filepath.Base(fullPath), SiteName: siteName}
+
+	// Initialize data with defaults
+	data := ImagePageData{
+		Src:          "/" + filepath.ToSlash(fullPath),
+		FileName:     filepath.Base(fullPath),
+		SiteName:     siteName,
+		CurrentIndex: 1,
+		TotalImages:  1,
+	}
+
 	// Build absolute URLs for social preview
 	scheme := "http"
 	if r.TLS != nil {
@@ -199,31 +216,108 @@ func imageViewHandler(w http.ResponseWriter, r *http.Request) {
 	data.PageURL = scheme + "://" + r.Host + r.URL.RequestURI()
 	data.OGImage = scheme + "://" + r.Host + data.Src
 	data.Title = data.FileName + " - " + siteName
-	data.Description = "View image from " + siteName
+	data.Description = "Thai Card Store - View 2d thai card, thai vip card images with 2d lucky numbers and daily tips for thai stock lottery"
+
 	parts := strings.Split(fullPath, "/")
+	var relatedImages []string
+
 	if len(parts) >= 3 && parts[1] == "daily" { // images/daily/<folder>/file
 		data.Kind = "daily"
 		data.Folder = parts[2]
 		// gather related images in same folder
 		related := listImages(filepath.Join("images", "daily", data.Folder))
 		for _, rimg := range related {
-			if "/"+rimg != data.Src {
-				data.RelatedImages = append(data.RelatedImages, "/"+rimg)
+			relatedImages = append(relatedImages, "/"+rimg)
+		}
+		// Find current index in the related images
+		currentImagePath := "/" + filepath.ToSlash(fullPath)
+		for i, rimg := range relatedImages {
+			if rimg == currentImagePath {
+				data.CurrentIndex = i + 1
+				break
 			}
 		}
+		data.TotalImages = len(relatedImages)
 	} else if len(parts) >= 2 && parts[1] == "weekly" { // images/weekly/file
 		data.Kind = "weekly"
+		data.Folder = ""
 		related := listImages("images/weekly")
 		for _, rimg := range related {
-			if "/"+rimg != data.Src {
-				data.RelatedImages = append(data.RelatedImages, "/"+rimg)
+			relatedImages = append(relatedImages, "/"+rimg)
+		}
+		// Find current index in the related images
+		currentImagePath := "/" + filepath.ToSlash(fullPath)
+		for i, rimg := range relatedImages {
+			if rimg == currentImagePath {
+				data.CurrentIndex = i + 1
+				break
 			}
 		}
+		data.TotalImages = len(relatedImages)
 	} else {
-		http.Error(w, "unsupported path", http.StatusBadRequest)
-		return
+		// For images that don't fit daily/weekly pattern, try to get all images
+		data.Kind = "other"
+		data.Folder = ""
+		// Get all images from the images directory recursively
+		allImages := getAllImagesRecursive("images")
+		for _, rimg := range allImages {
+			relatedImages = append(relatedImages, "/"+rimg)
+		}
+		// Find current index
+		currentImagePath := "/" + filepath.ToSlash(fullPath)
+		for i, rimg := range relatedImages {
+			if rimg == currentImagePath {
+				data.CurrentIndex = i + 1
+				break
+			}
+		}
+		data.TotalImages = len(relatedImages)
 	}
-	if err := templates.ExecuteTemplate(w, "image.gohtml", data); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+
+	data.RelatedImages = relatedImages
+
+	// Debugging output
+	log.Printf("Debug - Current image: %s", "/"+filepath.ToSlash(fullPath))
+	log.Printf("Debug - Related images count: %d", len(relatedImages))
+	log.Printf("Debug - Current index: %d", data.CurrentIndex)
+	log.Printf("Debug - Total images: %d", data.TotalImages)
+	if len(relatedImages) > 0 {
+		log.Printf("Debug - First few related: %v", relatedImages[:min(3, len(relatedImages))])
 	}
+
+	err := templates.ExecuteTemplate(w, "image.gohtml", data)
+	if err != nil {
+		log.Printf("error executing template: %v", err)
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+	}
+}
+
+// Helper function to get all images recursively
+func getAllImagesRecursive(dir string) []string {
+	var images []string
+	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if !info.IsDir() {
+			ext := strings.ToLower(filepath.Ext(path))
+			if ext == ".jpg" || ext == ".jpeg" || ext == ".png" || ext == ".gif" || ext == ".webp" {
+				images = append(images, filepath.ToSlash(path))
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		log.Printf("Error walking directory %s: %v", dir, err)
+		return nil
+	}
+	sort.Strings(images)
+	return images
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }

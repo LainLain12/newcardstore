@@ -4,7 +4,11 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
+<meta name="keywords" content="2d, thai card, 2d thai card, thai vip card, thai stock lottery, 2d lucky number, 2d daily tips">
 <title>{{.Title}}</title>
+<!-- Favicon -->
+<link rel="icon" type="image/png" href="/appicon.png">
+<link rel="apple-touch-icon" href="/appicon.png">
 <meta name="description" content="{{.Description}}" />
 <meta property="og:type" content="website" />
 <meta property="og:site_name" content="{{.SiteName}}" />
@@ -21,12 +25,39 @@
 <style>
   :root { --appbar-bg: rgba(13,65,61,1); }
   body { font-family: 'Inter', system-ui, sans-serif; }
-  .thumbs { display:flex; gap:.75rem; overflow-x:auto; padding:.5rem .25rem 1rem; -webkit-overflow-scrolling:touch; }
+  
+  /* Fixed thumbnails to always be horizontal scroll */
+  .thumbs { 
+    display: flex; 
+    gap: 0.75rem; 
+    overflow-x: auto; 
+    overflow-y: visible; 
+    padding: 0.5rem 0.25rem 1rem; 
+    -webkit-overflow-scrolling: touch;
+  }
+  
   .thumbs::-webkit-scrollbar { display:none; }
   .thumbs img { box-shadow:0 1px 2px rgba(0,0,0,.15); }
   .glass { background: var(--appbar-bg); color:#fff; }
   .glass button, .glass a, .glass h1 { color:#fff; }
   .glass button:hover, .glass a:hover { background:rgba(255,255,255,.08); }
+
+  /* Active thumbnail highlight */
+  .thumbs button.active {
+    transform: scale(1.05);
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+  }
+  .thumbs button.active img {
+    border-color: #3b82f6;
+    border-width: 2px;
+  }
+
+  /* Main image swipe indicator */
+  .main-image-container {
+    position: relative;
+    touch-action: pan-y;
+  }
+  
   @media (prefers-color-scheme: dark){ body{background:#0f1115; color:#f4f6f9;} }
 </style>
 </head>
@@ -36,6 +67,7 @@
       <a href="javascript:history.back()" aria-label="Back" class="p-2 rounded-full hover:bg-black/5 dark:hover:bg-white/10">
         <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
       </a>
+      <img src="/appicon.png" alt="Logo" class="h-6 w-6 rounded-full" loading="lazy" />
       <h1 class="text-sm sm:text-base font-semibold truncate flex-1">{{.FileName}}</h1>
       <button id="downloadBtn" aria-label="Download" class="p-2 rounded-full hover:bg-black/5 dark:hover:bg-white/10">
         <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3"/></svg>
@@ -48,9 +80,10 @@
       </a>
     </div>
   </header>
+
   <main class="flex-1 max-w-7xl mx-auto w-full px-2 sm:px-4 pt-20 pb-24 sm:pb-16">
-    <div class="relative bg-white dark:bg-gray-900/60 border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm overflow-hidden flex items-center justify-center p-2 sm:p-4 min-h-[50vh]">
-      <img id="mainImage" src="{{.Src}}" alt="{{.FileName}}" class="max-h-[75vh] object-contain w-auto select-none" loading="eager" />
+    <div class="main-image-container relative bg-white dark:bg-gray-900/60 border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm overflow-hidden flex items-center justify-center p-2 sm:p-4 min-h-[50vh]">
+      <img id="mainImage" src="{{.Src}}" alt="{{.FileName}}" class="max-h-[75vh] object-contain w-auto select-none transition-transform duration-200" loading="eager" />
     </div>
   </main>
   {{if .RelatedImages}}
@@ -58,8 +91,8 @@
     <div class="max-w-7xl mx-auto px-2 sm:px-4 py-2">
       <div id="relatedRow" class="thumbs">
         {{range .RelatedImages}}
-          <button data-src="{{.}}" class="group relative flex-shrink-0 focus:outline-none focus:ring-2 focus:ring-indigo-500 rounded-lg overflow-hidden">
-            <img src="{{.}}" class="h-20 w-20 object-cover rounded-lg border border-gray-200 dark:border-gray-700 group-hover:opacity-80 transition" loading="lazy" />
+          <button data-src="{{.}}" class="group relative h-20 w-20 flex-shrink-0 focus:outline-none focus:ring-2 focus:ring-indigo-500 rounded-lg overflow-hidden transition-all duration-200">
+            <img src="{{.}}" class="w-full h-full object-cover rounded-lg border border-gray-200 dark:border-gray-700 group-hover:opacity-80 transition" loading="lazy" />
           </button>
         {{end}}
       </div>
@@ -72,58 +105,146 @@ const downloadBtn = document.getElementById('downloadBtn');
 const copyBtn = document.getElementById('copyBtn');
 const related = document.getElementById('relatedRow');
 
+function updateActiveThumb(currentSrc) {
+  if (!related) return;
+  
+  const items = Array.from(related.querySelectorAll('button[data-src]'));
+  const currentIndex = items.findIndex(btn => btn.dataset.src === currentSrc);
+  
+  if (currentIndex !== -1) {
+    items.forEach(btn => btn.classList.remove('active'));
+    if (items[currentIndex]) {
+      items[currentIndex].classList.add('active');
+      items[currentIndex].scrollIntoView({ 
+        behavior: 'smooth', 
+        block: 'nearest',
+        inline: 'center'
+      });
+    }
+  }
+}
+
 function downloadCurrent(){
   const a = document.createElement('a');
   a.href = mainImg.src; a.download = mainImg.src.split('/').pop();
   document.body.appendChild(a); a.click(); a.remove();
 }
-if(downloadBtn){ downloadBtn.addEventListener('click', downloadCurrent); }
+
+function swapImage(src){
+  if(!src) return;
+  mainImg.style.opacity = '0.7';
+  mainImg.src = src;
+  mainImg.onload = () => { mainImg.style.opacity = '1'; };
+  history.replaceState(null,'', '/view?src=' + encodeURIComponent(src.substring(1)));
+  updateActiveThumb(src);
+}
+
+if(downloadBtn) downloadBtn.addEventListener('click', downloadCurrent);
 
 if(copyBtn){
   copyBtn.addEventListener('click', async ()=>{
-    try { await navigator.clipboard.writeText(window.location.href); copyBtn.classList.add('text-green-600'); copyBtn.title='Copied'; }
-    catch(e){ copyBtn.classList.add('text-red-600'); }
+    try { 
+      await navigator.clipboard.writeText(window.location.href); 
+      copyBtn.classList.add('text-green-600'); 
+    } catch(e){ 
+      copyBtn.classList.add('text-red-600'); 
+    }
     setTimeout(()=>{copyBtn.classList.remove('text-green-600','text-red-600');},1500);
   });
 }
 
-function swapImage(src){
-  if(!src) return;
-  mainImg.src = src;
-  history.replaceState(null,'', '/view?src=' + encodeURIComponent(src.substring(1)));
-}
 if(related){
   related.querySelectorAll('button[data-src]').forEach(btn=>{
     btn.addEventListener('click', ()=> swapImage(btn.dataset.src));
   });
+  
+  const currentSrc = mainImg.src.replace(window.location.origin, '');
+  updateActiveThumb(currentSrc);
 }
 
-// Swipe left/right (touch) to move among related images
 let touchStartX = 0;
-mainImg.addEventListener('touchstart', e=>{touchStartX = e.touches[0].clientX;});
+let touchStartY = 0;
+let isDragging = false;
+
+mainImg.addEventListener('touchstart', e=>{
+  touchStartX = e.touches[0].clientX;
+  touchStartY = e.touches[0].clientY;
+  isDragging = false;
+}, { passive: true });
+
+mainImg.addEventListener('touchmove', e=>{
+  if (!isDragging) {
+    const dx = Math.abs(e.touches[0].clientX - touchStartX);
+    const dy = Math.abs(e.touches[0].clientY - touchStartY);
+    if (dx > dy && dx > 10) isDragging = true;
+  }
+}, { passive: true });
+
 mainImg.addEventListener('touchend', e=>{
-  if(!related) return;
+  if(!related || !isDragging) return;
+  
   const dx = e.changedTouches[0].clientX - touchStartX;
-  if(Math.abs(dx) < 40) return;
+  if(Math.abs(dx) < 50) return;
+  
   const items = Array.from(related.querySelectorAll('button[data-src]'));
   const current = mainImg.src.replace(window.location.origin, '');
   const idx = items.findIndex(b=> b.dataset.src === current);
   let nextIdx = idx;
-  if(dx < 0) nextIdx = Math.min(items.length-1, idx+1); else nextIdx = Math.max(0, idx-1);
+  
+  if(dx < 0) nextIdx = Math.min(items.length-1, idx+1);
+  else nextIdx = Math.max(0, idx-1);
+  
+  if(nextIdx !== idx && items[nextIdx]) swapImage(items[nextIdx].dataset.src);
+}, { passive: true });
+
+mainImg.addEventListener('wheel', e => {
+  if (!related) return;
+  e.preventDefault();
+  
+  const items = Array.from(related.querySelectorAll('button[data-src]'));
+  const current = mainImg.src.replace(window.location.origin, '');
+  const idx = items.findIndex(b=> b.dataset.src === current);
+  let nextIdx = idx;
+  
+  if (e.deltaY > 0) nextIdx = Math.min(items.length-1, idx+1);
+  else nextIdx = Math.max(0, idx-1);
+  
   if(nextIdx !== idx && items[nextIdx]) swapImage(items[nextIdx].dataset.src);
 });
 
-// Keyboard navigation
 document.addEventListener('keydown', e=>{
   if(!related) return;
-  if(['ArrowRight','ArrowLeft'].includes(e.key)){
+  if(['ArrowRight','ArrowLeft','ArrowUp','ArrowDown'].includes(e.key)){
+    e.preventDefault();
     const items = Array.from(related.querySelectorAll('button[data-src]'));
     const current = mainImg.src.replace(window.location.origin, '');
     const idx = items.findIndex(b=> b.dataset.src === current);
     let nextIdx = idx;
-    if(e.key === 'ArrowRight') nextIdx = Math.min(items.length-1, idx+1); else nextIdx = Math.max(0, idx-1);
+    
+    if(e.key === 'ArrowRight' || e.key === 'ArrowDown') nextIdx = Math.min(items.length-1, idx+1);
+    else nextIdx = Math.max(0, idx-1);
+    
     if(nextIdx !== idx && items[nextIdx]) swapImage(items[nextIdx].dataset.src);
-  } else if(e.key === 's'){ downloadCurrent(); }
+  } else if(e.key === 's'){ 
+    e.preventDefault();
+    downloadCurrent(); 
+  }
+});
+
+mainImg.addEventListener('load', ()=>{
+  if (!related) return;
+  
+  const items = Array.from(related.querySelectorAll('button[data-src]'));
+  const current = mainImg.src.replace(window.location.origin, '');
+  const idx = items.findIndex(b=> b.dataset.src === current);
+  
+  [-1, 1].forEach(offset => {
+    const targetIdx = idx + offset;
+    if (targetIdx >= 0 && targetIdx < items.length) {
+      const img = new Image();
+      img.src = items[targetIdx].dataset.src;
+    }
+  });
 });
 </script>
 </body>
